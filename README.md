@@ -12,6 +12,9 @@ If you've got a lot of VMs, you might want to see their status quickly when on a
 wget https://raw.githubusercontent.com/morph027/pve-cli-dashboard/master//.bash_aliases -O /etc/pve/.bash_aliases
 
 cat >> ~/.bash_aliases << EOF
+
+# https://github.com/morph027/pve-cli-dashboard
 . /etc/pve/.bash_aliases
+
 EOF
 ```
