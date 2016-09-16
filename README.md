@@ -14,7 +14,7 @@ wget https://raw.githubusercontent.com/morph027/pve-cli-dashboard/master//.bash_
 cat >> ~/.bash_aliases << EOF
 
 # https://github.com/morph027/pve-cli-dashboard
-. /etc/pve/.bash_aliases
+[ -f /etc/pve/.bash_aliases ] && . /etc/pve/.bash_aliases
 
 EOF
 ```
