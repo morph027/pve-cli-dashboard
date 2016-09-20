@@ -32,6 +32,10 @@ Please enter the ID to confirm (101): 101
 Destroying 101 ...
 ```
 
+### reset
+
+Just stops and starts a VM.
+
 ## Goodies
 
 ### config file to bash array

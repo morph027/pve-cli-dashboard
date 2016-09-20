@@ -102,6 +102,10 @@ pct() {
       _destroy "$@"
     ;;
 
+    "reset")
+      VM=$2; pct shutdown $VM && sleep 5 && pct start $VM
+    ;;
+
     *)
       command pct "$@"
     ;;
