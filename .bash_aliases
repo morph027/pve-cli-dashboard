@@ -139,6 +139,6 @@ _prettify pct
 
 echo -ne "-------\n"
 
-_prettify pct
+_prettify qm
 
 echo -ne "-------\n"
