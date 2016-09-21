@@ -103,7 +103,7 @@ pct() {
     ;;
 
     "reset")
-      VM=$2; pct shutdown $VM && sleep 5 && pct start $VM
+      VM=$2; command pct shutdown $VM && sleep 5 && command pct start $VM
     ;;
 
     *)
