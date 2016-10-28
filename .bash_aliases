@@ -133,12 +133,23 @@ qm() {
   esac
 }
 
+##
+## motd
+##
+
+shopt -s nullglob
+lxcfiles=(/etc/pve/lxc/*.conf)
+qmfiles=(/etc/pve/qemu-server/*.conf)
+shopt -u nullglob
+
 echo "-------"
 
-_prettify pct
+if [ ! ${#lxcfiles[@]} -eq 0 ]; then
+  _prettify pct
+  echo -ne "-------\n"
+fi
 
-echo -ne "-------\n"
-
-_prettify qm
-
-echo -ne "-------\n"
+if [ ! ${#qmfiles[@]} -eq 0 ]; then
+  _prettify qm
+  echo -ne "-------\n"
+fi
