@@ -11,6 +11,20 @@ This snippet just prettifies the output by adding some colors.
 
 ![](pve-cli-dashboard-single.png)
 
+## Bash tab completion
+
+Tab everything ;)
+
+```bash
+root@proxmox:~# enter-by-name <tab>
+debian        ubuntu             centos  alpine
+root@proxmox:~# reset-by-name <tab>
+debian        ubuntu             centos  alpine
+root@proxmox:~# enter-by-name deb<tab>
+root@proxmox:~# enter-by-name debian
+root@debian:~#
+```
+
 ## Extra functions
 
 ### destroy guard
