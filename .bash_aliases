@@ -108,7 +108,7 @@ _get-id-by-name() {
 
 start-by-name() {
   local VM_NAME="$1"
-  if VM_ID=$(get-id-by-name $VM_NAME); then
+  if VM_ID=$(_get-id-by-name $VM_NAME); then
     pct start "$VM_ID"
   fi
 }
@@ -119,7 +119,7 @@ start-by-name() {
 
 stop-by-name() {
   local VM_NAME="$1"
-  if VM_ID=$(get-id-by-name $VM_NAME); then
+  if VM_ID=$(_get-id-by-name $VM_NAME); then
     pct stop "$VM_ID"
   fi
 }
@@ -130,7 +130,7 @@ stop-by-name() {
 
 shutdown-by-name() {
   local VM_NAME="$1"
-  if VM_ID=$(get-id-by-name $VM_NAME); then
+  if VM_ID=$(_get-id-by-name $VM_NAME); then
     pct shutdown "$VM_ID"
   fi
 }
@@ -141,7 +141,7 @@ shutdown-by-name() {
 
 enter-by-name() {
   local VM_NAME="$1"
-  if VM_ID=$(get-id-by-name $VM_NAME); then
+  if VM_ID=$(_get-id-by-name $VM_NAME); then
     pct enter "$VM_ID"
   fi
 }
@@ -152,7 +152,7 @@ enter-by-name() {
 
 reset-by-name() {
   local VM_NAME="$1"
-  if VM_ID=$(get-id-by-name $VM_NAME); then
+  if VM_ID=$(_get-id-by-name $VM_NAME); then
     pct reset "$VM_ID"
   fi
 }
