@@ -88,6 +88,87 @@ _prettify() {
 }
 
 ##
+## _get-id-by-name() gets the lxc VMID of a given name
+##
+
+_get-id-by-name() {
+  local VM_NAME="$1"
+  VM_CONFIG=$(grep -l 'name: '"$VM_NAME"'' /etc/pve/lxc/*)
+  if [ ! ${#VM_CONFIG} -eq "0" ]; then
+    VM_CONFIG=$(basename "$VM_CONFIG")
+    echo "${VM_CONFIG%%.*}"
+  else
+    return 1
+  fi
+}
+
+##
+## start-by-name starts the lxc container by given name
+##
+
+start-by-name() {
+  local VM_NAME="$1"
+  if VM_ID=$(get-id-by-name $VM_NAME); then
+    pct start "$VM_ID"
+  fi
+}
+
+##
+## stop-by-name stops the lxc container by given name
+##
+
+stop-by-name() {
+  local VM_NAME="$1"
+  if VM_ID=$(get-id-by-name $VM_NAME); then
+    pct stop "$VM_ID"
+  fi
+}
+
+##
+## shutdown-by-name shuts down the lxc container by given name
+##
+
+shutdown-by-name() {
+  local VM_NAME="$1"
+  if VM_ID=$(get-id-by-name $VM_NAME); then
+    pct shutdown "$VM_ID"
+  fi
+}
+
+##
+## enter-by-name enters the lxc container by given name
+##
+
+enter-by-name() {
+  local VM_NAME="$1"
+  if VM_ID=$(get-id-by-name $VM_NAME); then
+    pct enter "$VM_ID"
+  fi
+}
+
+##
+## reset-by-name resets the lxc container by given name
+##
+
+reset-by-name() {
+  local VM_NAME="$1"
+  if VM_ID=$(get-id-by-name $VM_NAME); then
+    pct reset "$VM_ID"
+  fi
+}
+
+##
+## tab completion for commands
+##
+
+complete -W "$(grep -hPo '(?<=^hostname: ).*' /etc/pve/lxc/*.conf)" \
+  start-by-name \
+  stop-by-name \
+  shutdown-ny-name \
+  enter-by-name \
+  reset-by-name
+
+##
 ## wrapper for real pct command
 ##
 
