@@ -77,13 +77,13 @@ _destroy() {
 ##
 
 _prettify() {
-  local COMMAND=$1
+  local COMMAND="$1"
   while read line
   do
     line=$(echo "$line" | sed 's,\(VMID.*\),\\e[1;37m\1\\e[0m,')
     _vm_status "$line" && echo -e "\e[0;32m" || echo -e "\e[0;31m"
     echo -ne "$line\e[0m"
-  done < <(command $COMMAND list)
+  done < <(command "$COMMAND" list)
   echo -ne "\n\n"
 }
 
@@ -103,14 +103,29 @@ _get-id-by-name() {
 }
 
 ##
+## _handle_by_name() iterate over given VM names
+##
+
+_handle_by_name() {
+  local ACTION="$1"
+  shift
+  # shellcheck disable=SC2068
+  for VM_NAME in $@
+  do
+    if VM_ID=$(_get-id-by-name "$VM_NAME"); then
+      echo "${ACTION} $VM_NAME"
+      pct "$ACTION" "$VM_ID"
+    fi
+  done
+}
+
+##
 ## start-by-name starts the lxc container by given name
 ##
 
 start-by-name() {
-  local VM_NAME="$1"
-  if VM_ID=$(_get-id-by-name $VM_NAME); then
-    pct start "$VM_ID"
-  fi
+  local VM_NAME="$*"
+  _handle_by_name "start" "$VM_NAME"
 }
 
 ##
@@ -118,10 +133,8 @@ start-by-name() {
 ##
 
 stop-by-name() {
-  local VM_NAME="$1"
-  if VM_ID=$(_get-id-by-name $VM_NAME); then
-    pct stop "$VM_ID"
-  fi
+  local VM_NAME="$*"
+  _handle_by_name "stop" "$VM_NAME"
 }
 
 ##
@@ -129,10 +142,8 @@ stop-by-name() {
 ##
 
 shutdown-by-name() {
-  local VM_NAME="$1"
-  if VM_ID=$(_get-id-by-name $VM_NAME); then
-    pct shutdown "$VM_ID"
-  fi
+  local VM_NAME="$*"
+  _handle_by_name "shutdown" "$VM_NAME"
 }
 
 ##
@@ -141,7 +152,7 @@ shutdown-by-name() {
 
 enter-by-name() {
   local VM_NAME="$1"
-  if VM_ID=$(_get-id-by-name $VM_NAME); then
+  if VM_ID=$(_get-id-by-name "$VM_NAME"); then
     pct enter "$VM_ID"
   fi
 }
@@ -151,10 +162,8 @@ enter-by-name() {
 ##
 
 reset-by-name() {
-  local VM_NAME="$1"
-  if VM_ID=$(_get-id-by-name $VM_NAME); then
-    pct reset "$VM_ID"
-  fi
+  local VM_NAME="$*"
+  _handle_by_name "reset" "$VM_NAME"
 }
 
 ##
@@ -164,7 +173,7 @@ reset-by-name() {
 complete -W "$(grep -hPo '(?<=^hostname: ).*' /etc/pve/lxc/*.conf)" \
   start-by-name \
   stop-by-name \
-  shutdown-ny-name \
+  shutdown-by-name \
   enter-by-name \
   reset-by-name
 
