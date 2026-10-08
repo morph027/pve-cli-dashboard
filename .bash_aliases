@@ -84,6 +84,35 @@ _destroy() {
 }
 
 ##
+## _align_qm() re-aligns "qm list" output: qm uses a fixed-width NAME column,
+## so names longer than 20 chars shift the rest of the row.
+## Every qm list field is non-empty and names can't contain spaces, so
+## splitting on whitespace is safe (unlike pct list, where Lock may be empty).
+## NAME and STATUS are left-aligned, the numeric columns right-aligned.
+##
+
+_align_qm() {
+  awk '
+    {
+      nf[NR] = NF
+      for (i = 1; i <= NF; i++) {
+        f[NR, i] = $i
+        if (length($i) > w[i]) w[i] = length($i)
+      }
+    }
+    END {
+      for (r = 1; r <= NR; r++) {
+        s = ""
+        for (i = 1; i <= nf[r]; i++) {
+          fmt = (i == 2 || i == 3) ? "%-" w[i] "s" : "%" w[i] "s"
+          s = s (i > 1 ? " " : "") sprintf(fmt, f[r, i])
+        }
+        print s
+      }
+    }'
+}
+
+##
 ## _prettify() just colors the command $1 by vm status (running/stopped)
 ##
 
@@ -104,7 +133,7 @@ _prettify() {
     fi
     # print the line literally via %s; only the color codes are interpreted
     printf '\n\e[%sm%s\e[0m' "$color" "$line"
-  done < <(command "$cmd" list)
+  done < <(if [ "$cmd" = qm ]; then command qm list | _align_qm; else command pct list; fi)
   printf '\n\n'
 }
 
