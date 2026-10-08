@@ -13,7 +13,7 @@ This snippet just prettifies the output by adding some colors.
 
 ## Bash tab completion
 
-Tab everything ;)
+Tab everything ;) The `*-by-name` helpers (`start`, `stop`, `shutdown`, `reset`, `enter`) work on LXC containers only and match the exact `hostname`. All except `enter-by-name` accept several names.
 
 ```bash
 root@proxmox:~# enter-by-name <tab>
@@ -32,23 +32,23 @@ root@debian:~#
 If you destroyed a vm by accident once (wrong bash history call, typo, whatever,...) you might like this one. It mimics the new behaviour of the web gui asking for confirmation when trying to destroy a VM.
 
 ```
-root@pve:~# qm destroy 101
+root@pve:~# pct destroy 101
 
 CT 101 - Destroy
 
-Please enter the ID to confirm (101): 100
+Please enter the ID to confirm (101 - vm-101): 100
 Good thing I asked; I won't destroy 101
-root@pve:~# qm destroy 101
+root@pve:~# pct destroy 101
 
 CT 101 - Destroy
 
-Please enter the ID to confirm (101): 101
+Please enter the ID to confirm (101 - vm-101): 101
 Destroying 101 ...
 ```
 
 ### reset
 
-Just stops and starts a VM.
+`pct reset <vmid>` shuts down a container and starts it again. It's only available for LXC containers. For VMs, use the built-in `qm reset`, which does a hard reset.
 
 ## Goodies
 
@@ -113,8 +113,10 @@ tank:vm-102-disk-1,cache=writeback,size=32G
 
 ## Installation
 
+`/etc/pve` is shared across all cluster nodes, and this file gets sourced in every root shell. Read it before installing. To get a fixed, reviewed version, replace `master` with a specific commit hash.
+
 ```
-wget https://raw.githubusercontent.com/morph027/pve-cli-dashboard/master//.bash_aliases -O /etc/pve/.bash_aliases
+wget https://raw.githubusercontent.com/morph027/pve-cli-dashboard/master/.bash_aliases -O /etc/pve/.bash_aliases
 
 cat >> ~/.bash_aliases << EOF
 
