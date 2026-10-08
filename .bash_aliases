@@ -3,72 +3,83 @@
 unset -v VMCONFIG
 declare -A VMCONFIG
 
-echo -ne "\n\n\e[1;34m### extra functions and colored output by https://github.com/morph027/pve-cli-dashboard ###\e[0m\n\n"
-
 ##
 ## _vm_status() just greps for status in "pct/qm list" output (submitted by _prettify())
 ## return values:
 ## 0 - running
 ## 1 - stopped
+## 2 - other/unknown (header line, paused, ...)
 ##
 
 _vm_status() {
-  local vm_info="$1"
-  local vm_status=$(echo "$vm_info" | grep -oE 'stopped|running')
-  case $vm_status in
-    "running")
-      return 0
-    ;;
-    "stopped")
-      return 1
-    ;;
+  # match the status as a standalone column, so names like "running-app" don't count
+  case " $1 " in
+    *" running "*) return 0 ;;
+    *" stopped "*) return 1 ;;
+    *) return 2 ;;
   esac
 }
 
 ##
 ## _info() will parse the config file of vm $1 into an associative bash array
 ## values can then be accessed using ${VMCONFIG[KEY]}, e.g. {VMCONFIG[net0]}
+## sets VMTYPE to "qemu-server" or "lxc"; returns 1 if no local config exists
 ##
 
 _info() {
-  local VM=$1
-  local CONFIGFILE=$(find /etc/pve -name ${VM}.conf)
-  VMTYPE=$(basename $(dirname $CONFIGFILE))
-  case $VMTYPE in
-    "qemu-server")
-      HOSTNAMEATTR="name"
-      COMMAND="qm"
-    ;;
-   "lxc")
-      HOSTNAMEATTR="hostname"
-      COMMAND="pct"
-   ;;
-  esac
-  while read line
+  local vm="$1" configfile line key
+  VMCONFIG=()
+  VMTYPE=""
+  [[ "$vm" =~ ^[0-9]+$ ]] || return 1
+  if [ -f "/etc/pve/qemu-server/${vm}.conf" ]; then
+    VMTYPE="qemu-server"
+  elif [ -f "/etc/pve/lxc/${vm}.conf" ]; then
+    VMTYPE="lxc"
+  else
+    return 1
+  fi
+  configfile="/etc/pve/${VMTYPE}/${vm}.conf"
+  while IFS= read -r line || [ -n "$line" ]
   do
-    local KEY="$(printf '%q' ${line%%:*})"
-    local VALUE="$(printf '%q' ${line#* })"
-    VMCONFIG[$KEY]="$VALUE"
-  done < $CONFIGFILE
+    case "$line" in
+      \[*) break ;;          # snapshot/pending sections follow the current config
+      \#*|"") continue ;;    # description comments and blank lines
+    esac
+    key="${line%%:*}"
+    VMCONFIG[$key]="${line#*: }"
+  done < "$configfile"
 }
 
 ##
 ## _destroy() will ask for confirmation before destroying
+## usage: _destroy <qm|pct> destroy <vmid> [options]
 ##
 
 _destroy() {
-  local PCT=$2
-  _info $PCT
-  $COMMAND status $PCT >/dev/null 2>&1
-  if [ $? -eq 0 ]; then
-    echo -ne "\n\e[1;31mCT $PCT - Destroy\n\n\e[0m"
-    read -r -p "Please enter the ID to confirm ($PCT - ${VMCONFIG[$HOSTNAMEATTR]}): " answer
-    if [ "$answer" == "$PCT" ]; then
-      echo "Destroying $PCT ..."
-      command $COMMAND "$@"
-    else
-      echo "Good thing I asked; I won't destroy $PCT"
-    fi
+  local cmd="$1" vmid="$3" label hostattr answer
+  shift
+  # no ID given: let the real command print its usage
+  [ -z "$vmid" ] && { command "$cmd" "$@"; return; }
+  if ! _info "$vmid"; then
+    echo "No guest with ID '$vmid' found on this node" >&2
+    return 1
+  fi
+  case "$cmd:$VMTYPE" in
+    qm:qemu-server) label="VM"; hostattr="name" ;;
+    pct:lxc)        label="CT"; hostattr="hostname" ;;
+    *)
+      echo "$vmid is not a $([ "$cmd" = qm ] && echo VM || echo CT); refusing to destroy" >&2
+      return 1
+    ;;
+  esac
+  echo -ne "\n\e[1;31m$label $vmid - Destroy\n\n\e[0m"
+  read -r -p "Please enter the ID to confirm ($vmid - ${VMCONFIG[$hostattr]}): " answer
+  if [ "$answer" == "$vmid" ]; then
+    echo "Destroying $vmid ..."
+    command "$cmd" "$@"
+  else
+    echo "Good thing I asked; I won't destroy $vmid"
+    return 1
   fi
 }
 
@@ -77,14 +88,24 @@ _destroy() {
 ##
 
 _prettify() {
-  local COMMAND="$1"
-  while read line
+  local cmd="$1" line color
+  # IFS= keeps leading spaces (column alignment), -r keeps backslashes
+  while IFS= read -r line
   do
-    line=$(echo "$line" | sed 's,\(VMID.*\),\\e[1;37m\1\\e[0m,')
-    _vm_status "$line" && echo -e "\e[0;32m" || echo -e "\e[0;31m"
-    echo -ne "$line\e[0m"
-  done < <(command "$COMMAND" list)
-  echo -ne "\n\n"
+    if [[ "$line" == *VMID* ]]; then
+      color="1;37"
+    else
+      _vm_status "$line"
+      case $? in
+        0) color="0;32" ;;
+        1) color="0;31" ;;
+        *) color="0;33" ;;
+      esac
+    fi
+    # print the line literally via %s; only the color codes are interpreted
+    printf '\n\e[%sm%s\e[0m' "$color" "$line"
+  done < <(command "$cmd" list)
+  printf '\n\n'
 }
 
 ##
@@ -92,14 +113,22 @@ _prettify() {
 ##
 
 _get-id-by-name() {
-  local VM_NAME="$1"
-  VM_CONFIG=$(grep -l 'name: '"$VM_NAME"'' /etc/pve/lxc/*)
-  if [ ! ${#VM_CONFIG} -eq "0" ]; then
-    VM_CONFIG=$(basename "$VM_CONFIG")
-    echo "${VM_CONFIG%%.*}"
-  else
-    return 1
-  fi
+  local VM_NAME="$1" matches
+  # exact, literal match on the hostname line (no substrings, no regex)
+  mapfile -t matches < <(grep -lFx -- "hostname: $VM_NAME" /etc/pve/lxc/*.conf 2>/dev/null)
+  case ${#matches[@]} in
+    0)
+      echo "No container named '$VM_NAME' found" >&2
+      return 1
+    ;;
+    1)
+      basename "${matches[0]}" .conf
+    ;;
+    *)
+      echo "Multiple containers named '$VM_NAME':" "${matches[@]##*/}" >&2
+      return 1
+    ;;
+  esac
 }
 
 ##
@@ -107,16 +136,18 @@ _get-id-by-name() {
 ##
 
 _handle_by_name() {
-  local ACTION="$1"
+  local action="$1" vm_name vm_id rc=0
   shift
-  # shellcheck disable=SC2068
-  for VM_NAME in $@
+  for vm_name in "$@"
   do
-    if VM_ID=$(_get-id-by-name "$VM_NAME"); then
-      echo "${ACTION} $VM_NAME"
-      pct "$ACTION" "$VM_ID"
+    if vm_id=$(_get-id-by-name "$vm_name"); then
+      echo "${action} $vm_name"
+      pct "$action" "$vm_id" || rc=1
+    else
+      rc=1
     fi
   done
+  return $rc
 }
 
 ##
@@ -124,8 +155,7 @@ _handle_by_name() {
 ##
 
 start-by-name() {
-  local VM_NAME="$*"
-  _handle_by_name "start" "$VM_NAME"
+  _handle_by_name "start" "$@"
 }
 
 ##
@@ -133,8 +163,7 @@ start-by-name() {
 ##
 
 stop-by-name() {
-  local VM_NAME="$*"
-  _handle_by_name "stop" "$VM_NAME"
+  _handle_by_name "stop" "$@"
 }
 
 ##
@@ -142,8 +171,7 @@ stop-by-name() {
 ##
 
 shutdown-by-name() {
-  local VM_NAME="$*"
-  _handle_by_name "shutdown" "$VM_NAME"
+  _handle_by_name "shutdown" "$@"
 }
 
 ##
@@ -151,10 +179,8 @@ shutdown-by-name() {
 ##
 
 enter-by-name() {
-  local VM_NAME="$1"
-  if VM_ID=$(_get-id-by-name "$VM_NAME"); then
-    pct enter "$VM_ID"
-  fi
+  local vm_id
+  vm_id=$(_get-id-by-name "$1") && pct enter "$vm_id"
 }
 
 ##
@@ -162,15 +188,21 @@ enter-by-name() {
 ##
 
 reset-by-name() {
-  local VM_NAME="$*"
-  _handle_by_name "reset" "$VM_NAME"
+  _handle_by_name "reset" "$@"
 }
 
 ##
 ## tab completion for commands
+## names are read on every <tab>, so new containers show up without re-sourcing
 ##
 
-complete -W "$(grep -hPo '(?<=^hostname: ).*' /etc/pve/lxc/*.conf)" \
+_complete_ct_names() {
+  local cur="${COMP_WORDS[COMP_CWORD]}" names
+  names=$(grep -hPo '(?<=^hostname: ).*' /etc/pve/lxc/*.conf 2>/dev/null)
+  mapfile -t COMPREPLY < <(compgen -W "$names" -- "$cur")
+}
+
+complete -F _complete_ct_names \
   start-by-name \
   stop-by-name \
   shutdown-by-name \
@@ -189,11 +221,21 @@ pct() {
     ;;
 
     "destroy")
-      _destroy "$@"
+      _destroy pct "$@"
     ;;
 
     "reset")
-      VM=$2; command pct shutdown $VM && sleep 5 && command pct start $VM
+      # shutdown blocks until the CT is stopped (or fails on timeout)
+      local vmid="$2"
+      if [ -z "$vmid" ]; then
+        echo "usage: pct reset <vmid>" >&2
+        return 1
+      fi
+      if ! command pct shutdown "$vmid"; then
+        echo "Shutdown of $vmid failed; not starting it again" >&2
+        return 1
+      fi
+      command pct start "$vmid"
     ;;
 
     *)
@@ -214,7 +256,7 @@ qm() {
     ;;
 
     "destroy")
-      _destroy "$@"
+      _destroy qm "$@"
     ;;
 
     *)
@@ -224,8 +266,12 @@ qm() {
 }
 
 ##
-## motd
+## motd (interactive shells only, so scp/rsync/"ssh host cmd" stay clean)
 ##
+
+[[ $- == *i* ]] || return 0
+
+echo -ne "\n\n\e[1;34m### extra functions and colored output by https://github.com/morph027/pve-cli-dashboard ###\e[0m\n\n"
 
 shopt -s nullglob
 lxcfiles=(/etc/pve/lxc/*.conf)
